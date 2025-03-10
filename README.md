@@ -32,4 +32,4 @@ Main features:
 
 
 ## Join Group
-- .[点击加入"Openwrt_Share Group"群](https://t.me/openwrt_lede_v2ray_plugin)
+
