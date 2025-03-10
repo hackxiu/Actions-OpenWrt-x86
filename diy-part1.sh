@@ -11,15 +11,35 @@
 #
 
 # Uncomment a feed source
+
+# Custom git
+function git_sparse_clone() {
+  branch="$1" repourl="$2" && shift 2
+  git clone --depth=1 -b $branch --single-branch --filter=blob:none --sparse $repourl
+  repodir=$(echo $repourl | awk -F '/' '{print $(NF)}')
+  cd $repodir && git sparse-checkout set $@
+  mv -f $@ ../package
+  cd .. && rm -rf $repodir
+}
+
+# Remove and update plugins
+rm -rf feeds/packages/lang/golang
+# Golang
+git clone -b 24.x https://github.com/sbwml/packages_lang_golang feeds/packages/lang/golang
 # Add a feed source
 sed -i "/helloworld/d" "feeds.conf.default"
 echo "src-git helloworld https://github.com/fw876/helloworld.git" >>"feeds.conf.default"
 #
 # Add passwall
 echo "src-git passwall https://github.com/xiaorouji/openwrt-passwall.git;main" >>"feeds.conf.default"
-echo "src-git passwall2 https://github.com/xiaorouji/openwrt-passwall2.git;main" >>feeds.conf.default
+echo "src-git passwall2 https://github.com/xiaorouji/openwrt-passwall2.git;main" >>"feeds.conf.default"
 # iStore
-echo "src-git istore https://github.com/linkease/istore;main" >>feeds.conf.default
+echo "src-git istore https://github.com/linkease/istore;main" >>"feeds.conf.default"
+# DDNS.to
+git_sparse_clone main https://github.com/linkease/nas-packages-luci luci/luci-app-ddnsto
+git_sparse_clone master https://github.com/linkease/nas-packages network/services/ddnsto
+# luci-app-webdav
+git clone https://git.kejizero.online/zhao/luci-app-webdav package/new/luci-app-webdav
 #
 mkdir -p files/usr/share
 mkdir -p files/etc/
@@ -112,7 +132,7 @@ EOF
 
 cat >hackxiu.sh <<-\EOOF
 	#!/bin/bash
-	hackxiu_version="`date '+%y%m%d%H%M'`_dev_Len yu" 
+	hackxiu_version="`date '+%y%m%d%H%M'`_dev_hackxiu" 
 	echo $hackxiu_version >  wget/DISTRIB_REVISION1 
 	echo $hackxiu_version | cut -d _ -f 1 >  files/etc/hackxiu_version  
 	#######
