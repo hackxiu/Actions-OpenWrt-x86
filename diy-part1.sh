@@ -14,12 +14,12 @@
 
 # Custom git
 function git_sparse_clone() {
-  branch="$1" repourl="$2" && shift 2
-  git clone --depth=1 -b $branch --single-branch --filter=blob:none --sparse $repourl
-  repodir=$(echo $repourl | awk -F '/' '{print $(NF)}')
-  cd $repodir && git sparse-checkout set $@
-  mv -f $@ ../package
-  cd .. && rm -rf $repodir
+	branch="$1" repourl="$2" && shift 2
+	git clone --depth=1 -b $branch --single-branch --filter=blob:none --sparse $repourl
+	repodir=$(echo $repourl | awk -F '/' '{print $(NF)}')
+	cd $repodir && git sparse-checkout set $@
+	mv -f $@ ../package
+	cd .. && rm -rf $repodir
 }
 
 # Remove and update plugins
@@ -40,6 +40,8 @@ git_sparse_clone main https://github.com/linkease/nas-packages-luci luci/luci-ap
 git_sparse_clone master https://github.com/linkease/nas-packages network/services/ddnsto
 # luci-app-webdav
 git clone https://git.kejizero.online/zhao/luci-app-webdav package/new/luci-app-webdav
+# poweroffdevice是一款基于OPNEWRT编译的关机源码插件
+git clone https://github.com/sirpdboy/luci-app-poweroffdevice package/luci-app-poweroffdevice
 #
 mkdir -p files/usr/share
 mkdir -p files/etc/
