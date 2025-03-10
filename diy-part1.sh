@@ -38,10 +38,6 @@ echo "src-git istore https://github.com/linkease/istore;main" >>"feeds.conf.defa
 # DDNS.to
 git_sparse_clone main https://github.com/linkease/nas-packages-luci luci/luci-app-ddnsto
 git_sparse_clone master https://github.com/linkease/nas-packages network/services/ddnsto
-# luci-app-webdav
-git clone https://git.kejizero.online/zhao/luci-app-webdav package/new/luci-app-webdav
-# poweroffdevice是一款基于OPNEWRT编译的关机源码插件
-git clone https://github.com/sirpdboy/luci-app-poweroffdevice package/luci-app-poweroffdevice
 #
 mkdir -p files/usr/share
 mkdir -p files/etc/
