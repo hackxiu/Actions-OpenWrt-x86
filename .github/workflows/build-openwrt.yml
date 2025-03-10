@@ -132,10 +132,10 @@ jobs:
         $GITHUB_WORKSPACE/$DIY_P1_SH
         
    
-    - name: lenyu
+    - name: hackxiu
       run: |
         cd openwrt 
-        bash  lenyu.sh
+        bash  hackxiu.sh
 
 
     - name: Update feeds
