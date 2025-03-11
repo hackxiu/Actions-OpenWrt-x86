@@ -6,11 +6,28 @@
 ![GitHub Stars](https://img.shields.io/github/stars/P3TERX/Actions-OpenWrt.svg?style=flat-square&label=Stars&logo=github)
 ![GitHub Forks](https://img.shields.io/github/forks/P3TERX/Actions-OpenWrt.svg?style=flat-square&label=Forks&logo=github)
 
+Default IP: 10.0.0.2
+
+Default Administrator Account: root
+
+Default Administrator Password: password
+
+
+
+Plugin List:
+
+
+
+
+
 A template for building OpenWrt with GitHub Actions
 
 Main features:
+
 1. Firmware can be automatically updated;
+
 2. Automatic updates have a luci interface to facilitate online firmware updates for everyone.
+
 3. Luci plugin features:
    
    a. Scheduled and manual updates are available.
@@ -30,6 +47,4 @@ Main features:
 
 ![image](https://user-images.githubusercontent.com/59961153/232178875-3bff84ef-2740-4607-a788-9acc5e8321e5.png)
 
-
 ## Join Group
-
