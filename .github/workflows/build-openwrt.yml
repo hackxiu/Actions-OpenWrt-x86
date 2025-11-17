@@ -18,27 +18,24 @@ on:
         description: 'SSH connection to Actions'
         required: false
         default: 'false'
-  #watch:
-    #types: started
-    
-  #schedule:
-     #- cron: 00 22 * * *
-    
-  
+
 env:
   REPO_URL: https://github.com/coolsnowwolf/lede
   REPO_BRANCH: master
+
   FEEDS_CONF: feeds.conf.default
-  CLASH_KERNEL: amd64
   CONFIG_FILE: .diffconfig
   DIY_P1_SH: diy-part1.sh
   DIY_P2_SH: diy-part2.sh
+
+  CLASH_KERNEL: amd64
+  TZ: Asia/Shanghai
+
   UPLOAD_BIN_DIR: false
   UPLOAD_FIRMWARE: true
+  UPLOAD_RELEASE: true
   UPLOAD_COWTRANSFER: false
   UPLOAD_WETRANSFER: false
-  UPLOAD_RELEASE: true
-  TZ: Asia/Shanghai
 
 jobs:
   build:
@@ -49,95 +46,82 @@ jobs:
     - name: Maximize Build Space
       uses: easimon/maximize-build-space@master
       with:
-        root-reserve-mb: 8192
-        swap-size-mb: 12288
+        root-reserve-mb: 6144
+        swap-size-mb: 10240
         remove-dotnet: 'true'
         remove-android: 'true'
         remove-haskell: 'true'
         remove-codeql: 'true'
         remove-docker-images: 'true'
         build-mount-path: '/workdir'
-        
-    - name: Checkout
-      uses: actions/checkout@main
-      
-    - name: Disk space
-      run: |
-           echo "Free space:"
-           df -h
 
-    - name: Initialization environment
+    - name: Checkout Repository
+      uses: actions/checkout@main
+
+    - name: Show Disk Space
+      run: df -h
+
+    - name: Prepare Build Environment
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
         sudo bash -c 'bash <(curl -s https://build-scripts.immortalwrt.org/init_build_environment.sh)'
-        sudo -E apt-get -qq autoremove --purge
-        sudo -E apt-get -qq clean
         sudo timedatectl set-timezone "$TZ"
         sudo mkdir -p /workdir
         sudo chown $USER:$GROUPS /workdir
-        
-    - name: Clone source code
+
+    - name: Clone Source Code
       working-directory: /workdir
       run: |
-        df -hT $PWD
         git clone $REPO_URL -b $REPO_BRANCH openwrt
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
-   
+
     - name: Cache
       uses: klever1988/cachewrtbuild@main
       with:
-       ccache: 'true' #'true' 默认值
-       #清空缓存
-       clean:  'false'  # 'false' 默认值
-       prefix: ${{ github.workspace }}/openwrt
-    
-    - name: luci-app-openclash install
+        ccache: 'true'
+        clean: 'false'
+        prefix: ${{ github.workspace }}/openwrt
+
+    # ---------------- Plugins -------------
+    - name: luci-app-openclash
       run: |
-        cd openwrt
-        mkdir package/luci-app-openclash
-        cd package/luci-app-openclash
+        cd openwrt/package
+        mkdir luci-app-openclash
+        cd luci-app-openclash
         git init
         git remote add -f origin https://github.com/vernesong/OpenClash.git
         git config core.sparsecheckout true
         echo "luci-app-openclash" >> .git/info/sparse-checkout
         git pull --depth 1 origin master
-        git branch --set-upstream-to=origin/master 
-    
+
     - name: luci-app-romupdate
       run: |
-        cd openwrt/package    
+        cd openwrt/package
         git clone -b dev https://github.com/Blueplanet20120/luci-app-romupdate.git
-    
-    #- name: luci-theme-argon
-      #run: |
-        #cd openwrt/package/lean
-        #rm -rf luci-theme-argon
-        #git clone -b 18.06 https://github.com/jerrykuku/luci-theme-argon.git luci-theme-argon
-        
+
     - name: aliyundrive-webdav
       run: |
         cd openwrt/package 
         git clone https://github.com/messense/aliyundrive-webdav.git
-       
+
     - name: luci-app-frpc
       run: |
         cd openwrt/package 
         git clone https://github.com/kuoruan/luci-app-frpc.git
-        
+
+    # ---------------- Feeds -------------
     - name: Load custom feeds
       run: |
         [ -e $FEEDS_CONF ] && mv $FEEDS_CONF openwrt/feeds.conf.default
         chmod +x $DIY_P1_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
-        
-   
+
     - name: hackxiu
       run: |
-        cd openwrt 
-        bash  hackxiu.sh
-
+        cd openwrt
+        bash hackxiu.sh
 
     - name: Update feeds
       run: cd openwrt && ./scripts/feeds update -a
@@ -145,127 +129,102 @@ jobs:
     - name: Install feeds
       run: cd openwrt && ./scripts/feeds install -a
 
+    # ---------------- Config -------------
     - name: Load custom configuration
       run: |
         [ -e files ] && mv files openwrt/files
         [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+
         chmod +x $DIY_P2_SH
         chmod +x $GITHUB_WORKSPACE/scripts/*.sh
+
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
         $GITHUB_WORKSPACE/scripts/preset-clash-core.sh $CLASH_KERNEL
 
+    # ---------------- Debug SSH -------------
     - name: SSH connection to Actions
       uses: P3TERX/ssh2actions@v1.0.0
-      if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
+      if: (github.event.inputs.ssh == 'true')
       env:
         TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
 
-    - name: Download package
-      id: package
+    # ---------------- Build -------------
+    - name: Download Package
       run: |
         cd openwrt
-        echo -e 'CONFIG_DEVEL=y\nCONFIG_CCACHE=y' >> .config #Cache.Speedup
+        echo -e 'CONFIG_DEVEL=y\nCONFIG_CCACHE=y' >> .config
         make defconfig
         make download -j8
-        find dl -size -1024c -exec ls -l {} \;
-        find dl -size -1024c -exec rm -f {} \;
+        find dl -size -1024c -delete
 
-    - name: Compile the firmware
-      id: compile
+    - name: Compile Firmware (auto-stop on error)
       run: |
         cd openwrt
-        mkdir -p files/etc/uci-defaults
-        cp $GITHUB_WORKSPACE/scripts/init-settings.sh files/etc/uci-defaults/99-init-settings
-        echo -e "$(nproc) thread compile"
-        make -j$(nproc) || make -j1 || make -j1 V=s
-        echo "status=success" >> $GITHUB_OUTPUT
+        echo "Using $(nproc) threads"
+        
+        # ❗ 必须：失败立即终止
+        make -j$(nproc) || { echo "Build failed!"; exit 1; }
+
+        # 获取设备名
         grep '^CONFIG_TARGET.*DEVICE.*=y' .config | sed -r 's/.*DEVICE_(.*)=y/\1/' > DEVICE_NAME
         [ -s DEVICE_NAME ] && echo "DEVICE_NAME=_$(cat DEVICE_NAME)" >> $GITHUB_ENV
         echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
 
-    - name: Check space usage
-      if: (!cancelled())
+    - name: Show Disk Usage
       run: df -hT
 
-    - name: Upload bin directory
-      uses: actions/upload-artifact@main
-      if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
-      with:
-        name: OpenWrt_bin${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
-        path: openwrt/bin
-   
-    - name: delete files
+    - name: Delete Useless Files
       run: |
-        cd openwrt 
-        bash  rename.sh
-    
+        cd openwrt
+        bash rename.sh
 
-    - name: Organize files
-      id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
+    - name: Organize Firmware
       run: |
         cd openwrt/bin/targets/*/*
         rm -rf packages
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-        echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: Upload firmware directory
+    # ---------- (NEW) 防止空固件上传 -------------
+    - name: Validate firmware files
+      run: |
+        echo "Checking firmware path: ${FIRMWARE}"
+        ls -l ${FIRMWARE}
+
+        if [ -z "$(ls -A ${FIRMWARE})" ]; then
+          echo "ERROR: No firmware files found!"
+          exit 1
+        fi
+
+        if find ${FIRMWARE} -type f -size 0 | grep -q .; then
+          echo "ERROR: Found empty firmware file!"
+          exit 1
+        fi
+
+    # ---------------- Upload firmware -------------
+    - name: Upload firmware
       uses: actions/upload-artifact@main
-      if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
         name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
 
-    - name: Upload firmware to cowtransfer
-      id: cowtransfer
-      if: steps.organize.outputs.status == 'success' && env.UPLOAD_COWTRANSFER == 'true' && !cancelled()
-      run: |
-        curl -fsSL git.io/file-transfer | sh
-        ./transfer cow --block 2621440 -s -p 64 --no-progress ${FIRMWARE} 2>&1 | tee cowtransfer.log
-        echo "::warning file=cowtransfer.com::$(cat cowtransfer.log | grep https)"
-        echo "url=$(cat cowtransfer.log | grep https | cut -f3 -d" ")" >> $GITHUB_OUTPUT
-
-    - name: Upload firmware to WeTransfer
-      id: wetransfer
-      if: steps.organize.outputs.status == 'success' && env.UPLOAD_WETRANSFER == 'true' && !cancelled()
-      run: |
-        curl -fsSL git.io/file-transfer | sh
-        ./transfer wet -s -p 16 --no-progress ${FIRMWARE} 2>&1 | tee wetransfer.log
-        echo "::warning file=wetransfer.com::$(cat wetransfer.log | grep https)"
-        echo "url=$(cat wetransfer.log | grep https | cut -f3 -d" ")" >> $GITHUB_OUTPUT
-
-    - name: Generate release tag
+    # ---------------- Release Tag -------------
+    - name: Generate Release Tag
       id: tag
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
       run: |
-        echo "release_tag=Openwrt_$(date +'%Y%m%d%H%M')" >> $GITHUB_OUTPUT
-        git -C openwrt log --pretty=format:"%s(#By %an)"  --graph --since=3.hour >> release.txt
-        git -C openwrt/feeds/packages log --pretty=format:"%s(#By %an)"  --graph --since=3.hour >> release.txt
-        git -C openwrt/feeds/luci log --pretty=format:"%s(#By %an)"  --graph --since=3.hour >> release.txt
-        git -C openwrt/feeds/routing log --pretty=format:"%s(#By %an)"  --graph --since=3.hour >> release.txt
-        git -C openwrt/feeds/telephony log --pretty=format:"%s(#By %an)"  --graph --since=3.hour >> release.txt
-        git -C openwrt/feeds/helloworld log --pretty=format:"%s(#By %an)"  --graph --since=4.hour >> release.txt
-        git -C openwrt/feeds/passwall log --pretty=format:"%s(#By %an)"  --graph --since=8.hour >> release.txt
-        git -C openwrt/package/luci-app-openclash log --pretty=format:"%s(#By %an)"  --graph --since=8.hour >> release.txt
-        test  ! -s release.txt && echo -e "\n* The source code is not updated." >> release.txt
-        sed -i '1i ## Firmware Update Log' release.txt
-        touch release.txt
-        [ $UPLOAD_COWTRANSFER = true ] && echo "🔗 [Cowtransfer](${{ steps.cowtransfer.outputs.url }})" >> release.txt
-        [ $UPLOAD_WETRANSFER = true ] && echo "🔗 [WeTransfer](${{ steps.wetransfer.outputs.url }})" >> release.txt
-        echo "status=success" >> $GITHUB_OUTPUT
+        echo "release_tag=$(cat openwrt/wget/op_version1)" >> $GITHUB_OUTPUT
 
-    - name: Upload firmware to release
+    - name: Upload to Release
       uses: softprops/action-gh-release@v2
-      if: steps.tag.outputs.status == 'success' && !cancelled()
+      if: env.UPLOAD_RELEASE == 'true'
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: ${{ steps.tag.outputs.release_tag }}
-        body_path: release.txt
         files: ${{ env.FIRMWARE }}/*
 
+    # ---------------- Cleanup -------------
     - name: Delete workflow runs
       uses: Lenyu2020/delete-workflow-runs@main
       with:
@@ -274,9 +233,9 @@ jobs:
 
     - name: Remove old Releases
       uses: dev-drprasad/delete-older-releases@master
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
+      if: env.UPLOAD_RELEASE == 'true'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         keep_latest: 10
         delete_tags: true
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
