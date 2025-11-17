@@ -19,7 +19,7 @@ sed -i 's/1.openwrt.pool.ntp.org/ntp2.aliyun.com/g' package/base-files/files/bin
 sed -i 's/2.openwrt.pool.ntp.org/time1.cloud.tencent.com/g' package/base-files/files/bin/config_generate
 sed -i 's/3.openwrt.pool.ntp.org/time2.cloud.tencent.com/g' package/base-files/files/bin/config_generate
 # 关闭IPV4 的DHCP 服务器
-sed -i '/uci commit network/a uci set dhcp.lan.ignore=\'1\'' package/base-files/files/bin/config_generate
+sed -i "/uci commit network/a uci set dhcp.lan.ignore='1'" package/base-files/files/bin/config_generate
 # Nginx
 sed -i "s/large_client_header_buffers 2 1k/large_client_header_buffers 4 32k/g" feeds/packages/net/nginx-util/files/uci.conf.template
 sed -i "s/client_max_body_size 128M/client_max_body_size 2048M/g" feeds/packages/net/nginx-util/files/uci.conf.template
